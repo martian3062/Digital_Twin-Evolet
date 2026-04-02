@@ -1,0 +1,237 @@
+from rest_framework import generics, permissions, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.utils import timezone
+from datetime import timedelta
+
+from .models import Vital, DigitalTwinState
+from .serializers import VitalSerializer, VitalCreateSerializer, DigitalTwinSerializer
+
+
+class VitalListCreateView(generics.ListCreateAPIView):
+    """List vitals for a patient or create new vital record."""
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return VitalCreateSerializer
+        return VitalSerializer
+
+    def get_queryset(self):
+        patient_id = self.kwargs.get('patient_id', self.request.user.id)
+        queryset = Vital.objects.filter(patient_id=patient_id)
+
+        # Filter by metric type
+        metric_type = self.request.query_params.get('metric_type')
+        if metric_type:
+            queryset = queryset.filter(metric_type=metric_type)
+
+        # Filter by time range
+        hours = self.request.query_params.get('hours')
+        if hours:
+            since = timezone.now() - timedelta(hours=int(hours))
+            queryset = queryset.filter(recorded_at__gte=since)
+
+        return queryset
+
+
+class VitalLatestView(APIView):
+    """Get latest vitals for each metric type for a patient."""
+
+    def get(self, request, patient_id=None):
+        pid = patient_id or request.user.id
+        metrics = Vital.MetricType.values
+
+        latest = {}
+        for metric in metrics:
+            vital = Vital.objects.filter(
+                patient_id=pid, metric_type=metric
+            ).first()
+            if vital:
+                latest[metric] = VitalSerializer(vital).data
+
+        return Response(latest)
+
+
+class DigitalTwinView(APIView):
+    """Get or update digital twin state."""
+
+    def get(self, request, patient_id=None):
+        pid = patient_id or request.user.id
+        twin, created = DigitalTwinState.objects.get_or_create(
+            patient_id=pid,
+            defaults={
+                'risk_scores': _generate_mock_risk_scores(),
+                'active_conditions': [],
+                'predicted_events': _generate_mock_predictions(),
+            }
+        )
+        return Response(DigitalTwinSerializer(twin).data)
+
+
+class DigitalTwinSimulateView(APIView):
+    """Run what-if simulation on the digital twin."""
+
+    def post(self, request, patient_id=None):
+        pid = patient_id or request.user.id
+        scenario = request.data.get('scenario', {})
+
+        # For MVP: simple rule-based simulation
+        results = _simulate_scenario(pid, scenario)
+        return Response(results)
+
+
+class GoogleFitConnectView(APIView):
+    """Initiate Google Fit OAuth2 connection."""
+
+    def post(self, request):
+        from .google_fit import get_oauth_url
+        try:
+            url, state = get_oauth_url()
+            return Response({'authorization_url': url, 'state': state})
+        except Exception as e:
+            return Response(
+                {'error': str(e), 'message': 'Google Fit credentials not configured. Using mock data.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+
+class GoogleFitCallbackView(APIView):
+    """Handle Google Fit OAuth2 callback."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        code = request.query_params.get('code')
+        if not code:
+            return Response({'error': 'No authorization code'}, status=400)
+
+        from .google_fit import exchange_code
+        from .models import GoogleFitToken
+
+        try:
+            credentials = exchange_code(code)
+            GoogleFitToken.objects.update_or_create(
+                user=request.user,
+                defaults={
+                    'access_token': credentials.token,
+                    'refresh_token': credentials.refresh_token,
+                    'token_expiry': credentials.expiry,
+                    'scopes': ','.join(credentials.scopes or []),
+                }
+            )
+            return Response({'message': 'Google Fit connected successfully'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+
+class GoogleFitSyncView(APIView):
+    """Trigger Google Fit data sync or generate mock data."""
+
+    def post(self, request):
+        from .google_fit import generate_mock_data
+
+        # For MVP: generate realistic mock data
+        count = generate_mock_data(request.user.id, hours=24)
+
+        # Update digital twin
+        _update_digital_twin(request.user.id)
+
+        return Response({
+            'message': f'Synced {count} vitals data points',
+            'count': count,
+            'source': 'mock_data',
+        })
+
+
+class VitalStatsView(APIView):
+    """Get aggregated vital statistics."""
+
+    def get(self, request, patient_id=None):
+        pid = patient_id or request.user.id
+        hours = int(request.query_params.get('hours', 24))
+        since = timezone.now() - timedelta(hours=hours)
+
+        from django.db.models import Avg, Min, Max, Count
+        metrics = ['heart_rate', 'spo2', 'bp_systolic', 'bp_diastolic', 'body_temp', 'steps']
+
+        stats = {}
+        for metric in metrics:
+            agg = Vital.objects.filter(
+                patient_id=pid, metric_type=metric, recorded_at__gte=since
+            ).aggregate(
+                avg=Avg('value'), min=Min('value'), max=Max('value'), count=Count('id')
+            )
+            if agg['count'] > 0:
+                stats[metric] = {
+                    'avg': round(agg['avg'], 1),
+                    'min': round(agg['min'], 1),
+                    'max': round(agg['max'], 1),
+                    'count': agg['count'],
+                }
+
+        return Response(stats)
+
+
+# --- Helpers ---
+
+def _generate_mock_risk_scores():
+    import random
+    return {
+        'cardiac': round(random.uniform(0.05, 0.35), 2),
+        'diabetes': round(random.uniform(0.1, 0.4), 2),
+        'respiratory': round(random.uniform(0.02, 0.2), 2),
+        'hypertension': round(random.uniform(0.1, 0.5), 2),
+        'stroke': round(random.uniform(0.01, 0.15), 2),
+        'overall_health': round(random.uniform(0.6, 0.95), 2),
+    }
+
+
+def _generate_mock_predictions():
+    return [
+        {'event': 'Potential hypertension episode', 'probability': 0.23, 'timeframe': '7 days'},
+        {'event': 'Sleep quality decline', 'probability': 0.15, 'timeframe': '3 days'},
+        {'event': 'Elevated stress indicators', 'probability': 0.31, 'timeframe': '48 hours'},
+    ]
+
+
+def _simulate_scenario(patient_id, scenario):
+    """Simple rule-based what-if simulation for MVP."""
+    import random
+
+    base_risks = _generate_mock_risk_scores()
+
+    # Apply scenario modifiers
+    if scenario.get('increase_exercise'):
+        base_risks['cardiac'] *= 0.8
+        base_risks['diabetes'] *= 0.7
+        base_risks['overall_health'] = min(1.0, base_risks['overall_health'] * 1.1)
+
+    if scenario.get('reduce_sodium'):
+        base_risks['hypertension'] *= 0.75
+        base_risks['stroke'] *= 0.85
+
+    if scenario.get('improve_sleep'):
+        base_risks['cardiac'] *= 0.9
+        base_risks['overall_health'] = min(1.0, base_risks['overall_health'] * 1.05)
+
+    return {
+        'scenario': scenario,
+        'adjusted_risk_scores': {k: round(v, 3) for k, v in base_risks.items()},
+        'recommendations': [
+            'Regular cardio exercise 30 min/day can reduce cardiac risk by 20%',
+            'Reducing sodium intake can lower hypertension risk by 25%',
+            'Improving sleep quality can boost overall health score by 5-10%',
+        ],
+        'model_version': 'rule-based-v0.1',
+    }
+
+
+def _update_digital_twin(patient_id):
+    """Update digital twin state after new data."""
+    DigitalTwinState.objects.update_or_create(
+        patient_id=patient_id,
+        defaults={
+            'risk_scores': _generate_mock_risk_scores(),
+            'predicted_events': _generate_mock_predictions(),
+        }
+    )
