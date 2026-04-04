@@ -42,13 +42,13 @@ class VitalLatestView(APIView):
         pid = patient_id or request.user.id
         metrics = Vital.MetricType.values
 
-        latest = {}
+        latest = []
         for metric in metrics:
             vital = Vital.objects.filter(
                 patient_id=pid, metric_type=metric
             ).first()
             if vital:
-                latest[metric] = VitalSerializer(vital).data
+                latest.append(VitalSerializer(vital).data)
 
         return Response(latest)
 

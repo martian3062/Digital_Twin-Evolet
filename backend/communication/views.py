@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from datetime import timedelta
 from .models import SignalMessage
 import json
 
@@ -29,7 +30,7 @@ class SignalView(APIView):
         signals = SignalMessage.objects.filter(room_id=room_id).order_by('timestamp')
         
         # Optionally, delete old signals (older than 5 mins) to keep clean
-        expiry = timezone.now() - timezone.timedelta(minutes=5)
+        expiry = timezone.now() - timedelta(minutes=5)
         SignalMessage.objects.filter(timestamp__lt=expiry).delete()
 
         data = [{

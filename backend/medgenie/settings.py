@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'channels',
+    'rest_framework_simplejwt.token_blacklist',
     # Local apps
     'accounts',
     'vitals',
@@ -32,6 +33,7 @@ INSTALLED_APPS = [
     'alerts',
     'ai_bridge',
     'communication',
+    'geospatial',
 ]
 
 MIDDLEWARE = [

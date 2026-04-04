@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /t/AMTZ_DigitalTwin/frontend/*.js /t/AMTZ_DigitalTwin/frontend/*.ts /t/AMTZ_DigitalTwin/frontend/*.json)",
+      "Bash(ls /t/AMTZ_DigitalTwin/frontend/next.config.*)",
+      "Bash(python3 -c \"import json; data=json.load\\(open\\('/t/AMTZ_DigitalTwin/frontend/eslint-report.json'\\)\\); errors=[m for f in data for m in f.get\\('messages',[]\\) if m.get\\('severity'\\)==2]; print\\(len\\(errors\\), 'errors'\\); [print\\(f['filePath'].split\\('frontend/'\\)[-1], e['line'], e['message']\\) for f in data for e in f.get\\('messages',[]\\) if e.get\\('severity'\\)==2][:20]\")",
+      "Bash(python3 -c ':*)",
+      "Bash(ls /t/AMTZ_DigitalTwin/frontend/.env*)"
+    ]
+  }
+}

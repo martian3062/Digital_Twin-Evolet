@@ -101,7 +101,7 @@ export const authAPI = {
   getProfile: () => apiFetch<UserProfile>("/auth/me/"),
 
   refreshToken: (refresh: string) =>
-    apiFetch<{ access: string }>("/auth/token/refresh/", {
+    apiFetch<{ access: string }>("/auth/refresh/", {
       method: "POST",
       body: JSON.stringify({ refresh }),
     }),
@@ -381,6 +381,75 @@ export const simulationAPI = {
       method: "POST",
       body: JSON.stringify(scenario),
     }, AI_BASE),
+};
+
+// ─── Geospatial API (IDF Step 12) ───────────────────────────
+export interface GeospatialResponse {
+  location: { lat: number; lng: number };
+  nearby_facilities: Array<{
+    name: string; type: string; distance_km: number;
+    eta_minutes: number; services: string[];
+  }>;
+  environmental_risk: {
+    aqi: number; aqi_category: string; heat_index: number;
+    humidity_pct: number; pollen_level: string; risk_level: string;
+  };
+  emergency_route: {
+    priority: string; recommended_facility: string;
+    distance_km: number; eta_minutes: number; ambulance_recommended: boolean;
+  };
+  spatial_insights: string[];
+}
+
+export const geospatialAPI = {
+  analyze: (lat: number, lng: number, risk_scores?: Record<string, number>) =>
+    apiFetch<GeospatialResponse>("/geospatial/", {
+      method: "POST",
+      body: JSON.stringify({ lat, lng, risk_scores }),
+    }),
+};
+
+// ─── Behavioral AI API (IDF Step 15) ────────────────────────
+export interface BehavioralResponse {
+  stress_index: number;
+  mood: { label: string; valence: number; arousal: number };
+  activity_readiness: number;
+  sleep_quality: number;
+  behavioral_risk_modifiers: Record<string, number>;
+  insights: string[];
+}
+
+export const behavioralAPI = {
+  analyze: (data: {
+    vitals?: unknown[]; voice_text?: string;
+    sleep_hours?: number; activity_minutes?: number;
+  }) =>
+    apiFetch<BehavioralResponse>("/behavioral/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};
+
+// ─── Patient Similarity API (IDF Step 16) ───────────────────
+export interface SimilarityResponse {
+  similar_patients: Array<{
+    cohort_id: string; similarity_score: number;
+    shared_conditions: string[]; treatment_outcomes: string[];
+  }>;
+  aggregated_recommendations: string[];
+}
+
+export const similarityAPI = {
+  findSimilar: (vitals: unknown[], top_k = 3) =>
+    apiFetch<SimilarityResponse>("/similarity/", {
+      method: "POST",
+      body: JSON.stringify({ vitals, top_k }),
+    }),
+};
+
+// ─── Federated Learning API (IDF Step 8) ────────────────────
+export const federatedAPI = {
+  status: () => apiFetch<Record<string, unknown>>("/federated/status/"),
 };
 
 export const api = {

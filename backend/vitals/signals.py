@@ -18,7 +18,7 @@ def trigger_ai_update(patient_id, vitals_data):
             f"{settings.AI_ENGINE_URL}/predict",
             json={
                 'patient_id': str(patient_id),
-                'vitals': vitals_data
+                'data': {'vitals': vitals_data}
             },
             timeout=10,
         )

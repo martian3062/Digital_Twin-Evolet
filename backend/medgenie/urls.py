@@ -9,4 +9,5 @@ urlpatterns = [
     path('api/', include('alerts.urls')),
     path('api/ai/', include('ai_bridge.urls')),
     path('api/comm/', include('communication.urls')),
+    path('api/', include('geospatial.urls')),
 ]

@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, Activity, FileText, Video,
-  Bell, Settings, Shield, Wifi, Bot, FlaskConical
+  Bell, Settings, Shield, Wifi, Bot, FlaskConical, MapPin, Brain, Users
 } from "lucide-react";
 
 const navItems = [
@@ -14,6 +14,9 @@ const navItems = [
   { id: "consultation", label: "Consult", icon: Video },
   { id: "alerts", label: "Alerts", icon: Bell },
   { id: "medibook", label: "MediBook", icon: Bot },
+  { id: "geospatial", label: "GeoHealth", icon: MapPin },
+  { id: "behavioral", label: "Behavioral", icon: Brain },
+  { id: "similarity", label: "Cohort AI", icon: Users },
   { id: "web3", label: "Web3 Vault", icon: Shield },
   { id: "offline", label: "Offline", icon: Wifi },
 ];

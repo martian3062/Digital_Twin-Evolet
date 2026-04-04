@@ -17,6 +17,9 @@ import ConsultationView from "@/components/views/ConsultationView";
 import AlertsDetailView from "@/components/views/AlertsDetailView";
 import MediBookView from "@/components/views/MediBookView";
 import Web3VaultView from "@/components/views/Web3VaultView";
+import GeospatialView from "@/components/views/GeospatialView";
+import BehavioralView from "@/components/views/BehavioralView";
+import SimilarityView from "@/components/views/SimilarityView";
 import NotificationManager from "@/components/dashboard/NotificationManager";
 import { TreatmentSimulator } from "@/components/twin/TreatmentSimulator";
 import { SimulationResponse } from "@/lib/api";
@@ -129,6 +132,9 @@ const viewComponents: Record<string, React.ComponentType> = {
   medibook: MediBookView,
   web3: Web3VaultView,
   simulator: () => <SimulatorView patientId="me" />,
+  geospatial: GeospatialView,
+  behavioral: BehavioralView,
+  similarity: SimilarityView,
 };
 
 export default function Dashboard() {
