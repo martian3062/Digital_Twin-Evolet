@@ -7,7 +7,7 @@ import { User, Lock, Activity, ArrowRight, ShieldCheck, AlertCircle } from "luci
 import Link from "next/link";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { login, loading } = useAuth();
@@ -16,7 +16,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     try {
-      await login({ username, password });
+      await login({ email, password });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Invalid credentials. Please try again.";
       setError(message);
@@ -67,11 +67,11 @@ export default function LoginPage() {
                   <User size={18} />
                 </div>
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all placeholder:text-gray-600"
-                  placeholder="Username or email"
+                  placeholder="Email address"
                   required
                 />
               </div>

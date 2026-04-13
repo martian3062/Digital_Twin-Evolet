@@ -71,10 +71,7 @@ function OverviewDashboard() {
           <span className="status-dot online" />
           <span className="text-emerald-400">System Online</span>
         </div>
-        <div className="w-px h-4 bg-white/10" />
-        <span className="text-slate-500">
-          Last synced: {new Date().toLocaleTimeString()}
-        </span>
+
         <div className="w-px h-4 bg-white/10" />
         <span className="text-violet-400">Digital Twin v0.1.0</span>
       </div>

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Users, CheckCircle, TrendingUp, Dna, Star } from "lucide-react";
 import { similarityAPI, SimilarityResponse } from "@/lib/api";
+import { sbSimilarity } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 function ScoreRing({ score }: { score: number }) {
   const pct = Math.round(score * 100);
@@ -19,6 +21,7 @@ function ScoreRing({ score }: { score: number }) {
 }
 
 export default function SimilarityView() {
+  const { user } = useAuth();
   const [data, setData] = useState<SimilarityResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,8 +32,18 @@ export default function SimilarityView() {
     try {
       const result = await similarityAPI.findSimilar([], 5);
       setData(result);
+      if (user) {
+        sbSimilarity.save(user.id, {
+          similar_patients: result.similar_patients,
+          aggregated_recommendations: result.aggregated_recommendations,
+        });
+      }
     } catch {
       setError("AI engine offline — showing cached cohort data.");
+      if (user) {
+        const { data: snap } = await sbSimilarity.latest(user.id).catch(() => ({ data: null }));
+        if (snap) { setData(snap as unknown as SimilarityResponse); return; }
+      }
       setData(mockData);
     } finally {
       setLoading(false);

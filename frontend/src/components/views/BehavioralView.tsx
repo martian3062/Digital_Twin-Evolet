@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Brain, Activity, Moon, Smile, Frown, Meh, TrendingUp, TrendingDown } from "lucide-react";
 import { behavioralAPI, BehavioralResponse } from "@/lib/api";
+import { sbBehavioral } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 function GaugeBar({ value, max = 100, color }: { value: number; max?: number; color: string }) {
   const pct = Math.min((value / max) * 100, 100);
@@ -41,6 +43,7 @@ function stressLabel(v: number) {
 }
 
 export default function BehavioralView() {
+  const { user } = useAuth();
   const [data, setData] = useState<BehavioralResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +57,22 @@ export default function BehavioralView() {
         activity_minutes: 30,
       });
       setData(result);
+      if (user) {
+        sbBehavioral.save(user.id, {
+          stress_index: result.stress_index,
+          mood: result.mood,
+          activity_readiness: result.activity_readiness,
+          sleep_quality: result.sleep_quality,
+          behavioral_risk_modifiers: result.behavioral_risk_modifiers,
+          insights: result.insights,
+        });
+      }
     } catch {
       setError("AI engine offline — showing cached data.");
+      if (user) {
+        const { data: snap } = await sbBehavioral.latest(user.id).catch(() => ({ data: null }));
+        if (snap) { setData(snap as unknown as BehavioralResponse); return; }
+      }
       setData(mockData);
     } finally {
       setLoading(false);

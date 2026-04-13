@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Navigation, Wind, Thermometer, AlertTriangle, Building2, Ambulance, Leaf } from "lucide-react";
 import { geospatialAPI, GeospatialResponse } from "@/lib/api";
+import { sbGeospatial } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 const RISK_COLORS: Record<string, string> = {
   low: "text-emerald-400",
@@ -20,6 +22,7 @@ const SEVERITY_BG: Record<string, string> = {
 };
 
 export default function GeospatialView() {
+  const { user } = useAuth();
   const [data, setData] = useState<GeospatialResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [lat, setLat] = useState(17.385);
@@ -32,8 +35,22 @@ export default function GeospatialView() {
     try {
       const result = await geospatialAPI.analyze(latitude, longitude);
       setData(result);
+      if (user) {
+        sbGeospatial.save(user.id, {
+          lat: latitude, lng: longitude,
+          nearby_facilities: result.nearby_facilities,
+          environmental_risk: result.environmental_risk,
+          emergency_route: result.emergency_route,
+          spatial_insights: result.spatial_insights,
+        });
+      }
     } catch {
       setError("AI engine offline — showing cached data.");
+      // Try loading last saved snapshot
+      if (user) {
+        const { data: snap } = await sbGeospatial.latest(user.id).catch(() => ({ data: null }));
+        if (snap) { setData(snap as unknown as GeospatialResponse); return; }
+      }
       setData(mockData);
     } finally {
       setLoading(false);

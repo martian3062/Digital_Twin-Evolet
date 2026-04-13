@@ -14,24 +14,25 @@ class UserSerializer(serializers.ModelSerializer):
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
-    full_name = serializers.CharField(write_only=True)
+    full_name = serializers.CharField(write_only=True, required=False, default="")
 
     class Meta:
         model = User
         fields = ['username', 'email', 'password', 'role', 'full_name', 'phone_number', 'language_pref']
 
     def create(self, validated_data):
-        full_name = validated_data.pop('full_name')
+        full_name = validated_data.pop('full_name', '')
         password = validated_data.pop('password')
-        user = User.objects.create_user(**validated_data)
-        user.set_password(password)
-        user.save()
+        user = User.objects.create_user(password=password, **validated_data)
+
+        # Use username as fallback for full_name
+        display_name = full_name or user.username
 
         # Auto-create profile based on role
         if user.role == User.Role.PATIENT:
-            PatientProfile.objects.create(user=user, full_name=full_name)
+            PatientProfile.objects.create(user=user, full_name=display_name)
         elif user.role == User.Role.DOCTOR:
-            DoctorProfile.objects.create(user=user, full_name=full_name)
+            DoctorProfile.objects.create(user=user, full_name=display_name)
 
         return user
 

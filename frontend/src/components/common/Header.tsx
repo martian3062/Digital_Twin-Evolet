@@ -2,7 +2,7 @@
 
 import { Bell, Search, User } from "lucide-react";
 import { motion } from "framer-motion";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import WalletConnectButton from "@/components/common/WalletConnectButton";
 
 export default function Header() {
   return (
@@ -26,11 +26,7 @@ export default function Header() {
       <div className="flex items-center gap-4">
         {/* Web3 Connect */}
         <div className="hidden sm:block">
-          <ConnectButton 
-            chainStatus="icon"
-            showBalance={false}
-            accountStatus="avatar"
-          />
+          <WalletConnectButton compact />
         </div>
 
         {/* Sync Status */}
