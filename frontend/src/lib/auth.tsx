@@ -2,107 +2,147 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { User } from "@supabase/supabase-js";
-import { sbAuth, sbProfiles } from "./supabase";
-
-interface Profile {
-  id: string;
-  username: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  role: "patient" | "doctor" | "admin";
-  did_identifier?: string;
-  wallet_address?: string;
-}
+import {
+  authAPI,
+  clearToken,
+  getRefreshToken,
+  getToken,
+  setRefreshToken,
+  setToken,
+  type UserProfile,
+} from "./api";
 
 interface AuthContextType {
-  user: User | null;
-  profile: Profile | null;
+  user: UserProfile | null;
+  profile: Record<string, unknown> | null;
   loading: boolean;
-  login: (credentials: { email: string; password: string }) => Promise<void>;
+  login: (credentials: { username?: string; email?: string; password: string }) => Promise<void>;
   register: (data: { email: string; password: string; username: string; first_name?: string; last_name?: string; role?: string }) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
 const publicPaths = ["/login", "/register"];
 
+function getIdentifier(credentials: { username?: string; email?: string; password: string }) {
+  return credentials.username?.trim() || credentials.email?.trim() || "";
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
-  const loadProfile = async (userId: string) => {
-    const { data } = await sbProfiles.get(userId);
-    if (data) setProfile(data as Profile);
+  const profile = (user?.profile as Record<string, unknown> | undefined) ?? null;
+
+  const handleUnauthenticated = () => {
+    clearToken();
+    setUser(null);
+    if (!publicPaths.includes(pathname)) {
+      router.push("/login");
+    }
+  };
+
+  const restoreSession = async () => {
+    const access = getToken();
+    const refresh = getRefreshToken();
+
+    if (!access && !refresh) {
+      handleUnauthenticated();
+      return;
+    }
+
+    try {
+      const me = await authAPI.getProfile();
+      setUser(me);
+      if (publicPaths.includes(pathname)) {
+        router.push("/");
+      }
+      return;
+    } catch {
+      if (!refresh) {
+        handleUnauthenticated();
+        return;
+      }
+    }
+
+    try {
+      const refreshed = await authAPI.refreshToken(refresh);
+      setToken(refreshed.access);
+      const me = await authAPI.getProfile();
+      setUser(me);
+      if (publicPaths.includes(pathname)) {
+        router.push("/");
+      }
+    } catch {
+      handleUnauthenticated();
+    }
   };
 
   useEffect(() => {
-    // Initial session check
-    sbAuth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-        if (!publicPaths.includes(pathname)) router.push("/login");
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = sbAuth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadProfile(session.user.id);
-        if (publicPaths.includes(pathname)) router.push("/");
-      } else {
-        setProfile(null);
-        if (!publicPaths.includes(pathname)) router.push("/login");
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    restoreSession().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = async ({ email, password }: { email: string; password: string }) => {
+  const login = async (credentials: { username?: string; email?: string; password: string }) => {
     setLoading(true);
     try {
-      const { error } = await sbAuth.signIn(email, password);
-      if (error) throw new Error(error.message);
+      const identifier = getIdentifier(credentials);
+      if (!identifier) {
+        throw new Error("Username or email is required.");
+      }
+
+      const tokens = await authAPI.login({
+        username: identifier,
+        password: credentials.password,
+      });
+      setToken(tokens.access);
+      setRefreshToken(tokens.refresh);
+
+      const me = await authAPI.getProfile();
+      setUser(me);
+      router.push("/");
+    } catch (error) {
+      clearToken();
+      setUser(null);
+      throw error instanceof Error ? error : new Error("Login failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const register = async (data: {
-    email: string; password: string; username: string;
-    first_name?: string; last_name?: string; role?: string;
+    email: string;
+    password: string;
+    username: string;
+    first_name?: string;
+    last_name?: string;
+    role?: string;
   }) => {
     setLoading(true);
     try {
-      const { error } = await sbAuth.signUp(data.email, data.password, {
+      await authAPI.register({
         username: data.username,
-        first_name: data.first_name,
-        last_name: data.last_name,
+        email: data.email,
+        password: data.password,
         role: data.role ?? "patient",
       });
-      if (error) throw new Error(error.message);
-      router.push("/login");
+
+      await login({
+        username: data.username,
+        email: data.email,
+        password: data.password,
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const logout = async () => {
-    await sbAuth.signOut();
+    clearToken();
     setUser(null);
-    setProfile(null);
     router.push("/login");
   };
 
@@ -119,6 +159,4 @@ export function useAuth() {
   return ctx;
 }
 
-// Legacy compatibility — existing components call useAuth().user.username etc.
-// They should migrate to profile, but we expose a merged shape for now.
-export type { Profile };
+export type { UserProfile as Profile };

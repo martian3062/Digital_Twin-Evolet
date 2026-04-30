@@ -119,9 +119,14 @@ SIMPLE_JWT = {
 
 # CORS
 CORS_ALLOW_ALL_ORIGINS = DEBUG
-CORS_ALLOWED_ORIGINS = [
+default_cors_origins = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+]
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('DJANGO_CORS_ALLOWED_ORIGINS', ','.join(default_cors_origins)).split(',')
+    if origin.strip()
 ]
 
 # Static files

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import PatientProfile, DoctorProfile
 
 User = get_user_model()
@@ -53,3 +54,17 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
         model = DoctorProfile
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class EmailOrUsernameTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Allow JWT login with either username or email in the username field."""
+
+    def validate(self, attrs):
+        username = attrs.get(self.username_field, '')
+        if username and '@' in username:
+            try:
+                user = User.objects.get(email__iexact=username)
+                attrs[self.username_field] = user.get_username()
+            except User.DoesNotExist:
+                pass
+        return super().validate(attrs)

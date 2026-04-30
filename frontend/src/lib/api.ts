@@ -5,6 +5,7 @@ const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws";
 
 // ─── Auth Token Management ─────────────────────────────────
 let accessToken: string | null = null;
+let refreshToken: string | null = null;
 
 export function setToken(token: string) {
   accessToken = token;
@@ -21,10 +22,27 @@ export function getToken(): string | null {
   return null;
 }
 
+export function setRefreshToken(token: string) {
+  refreshToken = token;
+  if (typeof window !== "undefined") {
+    localStorage.setItem("medgenie_refresh_token", token);
+  }
+}
+
+export function getRefreshToken(): string | null {
+  if (refreshToken) return refreshToken;
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("medgenie_refresh_token");
+  }
+  return null;
+}
+
 export function clearToken() {
   accessToken = null;
+  refreshToken = null;
   if (typeof window !== "undefined") {
     localStorage.removeItem("medgenie_token");
+    localStorage.removeItem("medgenie_refresh_token");
   }
 }
 
@@ -74,15 +92,21 @@ export interface LoginResponse {
   refresh: string;
 }
 
+export interface RegisterResponse {
+  user: UserProfile;
+  message: string;
+}
+
 export interface UserProfile {
   id: string;
   username: string;
   email: string;
-  first_name: string;
-  last_name: string;
   role: "patient" | "doctor" | "admin";
+  language_pref?: string;
   did_identifier?: string;
   wallet_address?: string;
+  phone_number?: string;
+  profile?: Record<string, unknown>;
 }
 
 export const authAPI = {
@@ -93,7 +117,7 @@ export const authAPI = {
     }),
 
   register: (data: { username: string; email: string; password: string; role?: string }) =>
-    apiFetch<UserProfile>("/auth/register/", {
+    apiFetch<RegisterResponse>("/auth/register/", {
       method: "POST",
       body: JSON.stringify(data),
     }),
